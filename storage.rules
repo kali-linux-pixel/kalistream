@@ -1,0 +1,77 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return firestore.get(/databases/(default)/documents/users/$(uid));
+    }
+
+    function roleOf(uid) {
+      return userDoc(uid).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (roleOf(request.auth.uid) == "admin" || roleOf(request.auth.uid) == "owner");
+    }
+
+    function isModerator() {
+      return isSignedIn() && roleOf(request.auth.uid) == "moderator";
+    }
+
+    function isAdminOrMod() {
+      return isAdmin() || isModerator();
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isSubtitle() {
+      return request.resource.contentType.matches('text/.*')
+        || request.resource.contentType == 'application/x-subrip';
+    }
+
+    match /avatars/{uid}/{fileName} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && isImage()
+        && request.resource.size <= 4 * 1024 * 1024;
+      allow update: if false; // prevent overwrite escalation
+      allow delete: if isSignedIn() && (request.auth.uid == uid || isAdminOrMod());
+    }
+
+    match /payments/{uid}/{fileName} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdminOrMod());
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && isImage()
+        && request.resource.size <= 8 * 1024 * 1024;
+      allow update: if false;
+      allow delete: if isSignedIn() && (request.auth.uid == uid || isAdminOrMod());
+    }
+
+    match /subtitles/{uid}/{fileName} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdminOrMod());
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && isSubtitle()
+        && request.resource.size <= 2 * 1024 * 1024;
+      allow update: if false;
+      allow delete: if isSignedIn() && (request.auth.uid == uid || isAdminOrMod());
+    }
+
+    match /banners/{uid}/{fileName} {
+      allow read: if true;
+      allow create, delete: if isAdminOrMod();
+      allow update: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

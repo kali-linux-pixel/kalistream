@@ -1,0 +1,147 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function roleOf(uid) {
+      return userDoc(uid).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (roleOf(request.auth.uid) == "admin" || roleOf(request.auth.uid) == "owner");
+    }
+
+    function isModerator() {
+      return isSignedIn() && roleOf(request.auth.uid) == "moderator";
+    }
+
+    function isAdminOrMod() {
+      return isAdmin() || isModerator();
+    }
+
+    function validUserRole(role) {
+      return role in ["owner", "admin", "moderator", "ultra", "plus", "basic", "free"];
+    }
+
+    function validPlan(plan) {
+      return plan in ["free", "basic", "plus", "ultra"];
+    }
+
+    match /users/{uid} {
+      allow create: if isSelf(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.email is string
+        && request.resource.data.username is string
+        && request.resource.data.avatar is string
+        && request.resource.data.createdAt is string
+        && validUserRole(request.resource.data.role)
+        && validPlan(request.resource.data.subscriptionPlan)
+        && request.resource.data.role == "free"
+        && request.resource.data.subscriptionPlan == "free";
+
+      allow read: if isSelf(uid) || isAdminOrMod();
+
+      // Users can update only safe profile fields; role/plan/subscription cannot be self-escalated.
+      allow update: if isSelf(uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.subscriptionPlan == resource.data.subscriptionPlan
+        && request.resource.data.subscriptionExpire == resource.data.subscriptionExpire
+        && request.resource.data.email is string
+        && request.resource.data.username is string
+        && request.resource.data.avatar is string
+        && request.resource.data.favorites is list
+        && request.resource.data.watchHistory is list
+        && request.resource.data.continueWatching is list
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      // Admin/mod can manage user account lifecycle.
+      allow update, delete: if isAdminOrMod();
+    }
+
+    match /payments/{paymentId} {
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email is string
+        && request.resource.data.method in ["Yape", "Plin", "PayPal"]
+        && request.resource.data.plan in ["basic", "plus", "ultra"]
+        && request.resource.data.duration is string
+        && request.resource.data.screenshotUrl is string
+        && request.resource.data.status == "pending";
+
+      allow read: if isAdminOrMod()
+        || (isSignedIn() && resource.data.uid == request.auth.uid);
+
+      // Users cannot approve/reject their own payment.
+      allow update, delete: if isAdminOrMod();
+    }
+
+    match /subscriptions/{subscriptionId} {
+      allow read: if isAdminOrMod()
+        || (isSignedIn() && resource.data.uid == request.auth.uid);
+
+      allow create, update, delete: if isAdminOrMod();
+    }
+
+    match /announcements/{announcementId} {
+      // Active announcements can be globally read for banner/toast experience.
+      allow read: if resource.data.active == true || isAdminOrMod();
+      allow create, update, delete: if isAdminOrMod();
+    }
+
+    match /bannedIps/{ip} {
+      allow read, create, update, delete: if isAdminOrMod();
+    }
+
+    match /adminLogs/{logId} {
+      allow read, create: if isAdminOrMod();
+      allow update, delete: if false;
+    }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdminOrMod();
+    }
+
+    match /analytics/{docId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdminOrMod();
+    }
+
+    // Optional dedicated collections (in addition to fields in users doc).
+    match /favorites/{docId} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow read, update, delete: if isAdminOrMod();
+    }
+
+    match /watchHistory/{docId} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow read, update, delete: if isAdminOrMod();
+    }
+
+    // Default deny for everything else.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+body {
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  color: #e4e4ef;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(0, 217, 255, 0.15), transparent 25%),
+    radial-gradient(circle at 80% 10%, rgba(125, 76, 255, 0.18), transparent 30%),
+    radial-gradient(circle at 70% 65%, rgba(19, 58, 255, 0.14), transparent 35%),
+    #07090f;
+  min-height: 100vh;
+  letter-spacing: 0;
+}
+
+* {
+  border-color: rgba(148, 163, 184, 0.12);
+  box-sizing: border-box;
+}
+
+.glass {
+  background: linear-gradient(
+    145deg,
+    rgba(11, 15, 26, 0.72),
+    rgba(22, 28, 46, 0.48)
+  );
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(103, 232, 249, 0.15);
+}
+
+.neon-ring {
+  box-shadow:
+    0 0 0 1px rgba(34, 211, 238, 0.22),
+    0 0 24px rgba(56, 189, 248, 0.24);
+}
+
+.noise-grid::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 44px 44px;
+  opacity: 0.35;
+  z-index: -1;
+}
+
+.premium-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.premium-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(34, 211, 238, 0.35);
+  box-shadow:
+    0 14px 40px rgba(2, 8, 23, 0.5),
+    0 0 24px rgba(56, 189, 248, 0.18);
+}
+
+.hero-cinematic {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-cinematic::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: conic-gradient(from 45deg, rgba(34, 211, 238, 0.06), rgba(139, 92, 246, 0.06), rgba(59, 130, 246, 0.08), rgba(34, 211, 238, 0.06));
+  filter: blur(60px);
+  animation: pulse-spin 14s linear infinite;
+  z-index: 0;
+}
+
+@keyframes pulse-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.08); }
+  100% { transform: rotate(360deg) scale(1); }
+}
