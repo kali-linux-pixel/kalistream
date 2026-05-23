@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: kalistream-app
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NEXT_PUBLIC_TMDB_API_KEY
+        scope: build,runtime
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_API_KEY
+        scope: build,runtime
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+        scope: build,runtime
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        scope: build,runtime
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+        scope: build,runtime
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+        scope: build,runtime
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_APP_ID
+        scope: build,runtime
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+        scope: build,runtime
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        scope: build,runtime
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        scope: build,runtime
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        scope: build,runtime
+        sync: false
+    disk:
+      name: kalistream-data
+      mountPath: /app
+      sizeGB: 10
+    plan: standard
+    numInstances: 1
+    healthCheckPath: /

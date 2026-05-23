@@ -64,7 +64,15 @@ async function tmdbFetch<T>(path: string): Promise<T> {
     next: { revalidate: 900 },
   });
   if (!res.ok) {
-    throw new Error(`TMDB fetch failed: ${path}`);
+    console.error("TMDB ERROR:", path, res.status);
+    return {
+      id: 0,
+      title: "Unavailable",
+      overview: "Content unavailable",
+      poster_path: "",
+      backdrop_path: "",
+      genres: [],
+    } as T;
   }
   return (await res.json()) as T;
 }
@@ -133,34 +141,52 @@ export async function getGenres(type: "movie" | "tv") {
 }
 
 export async function getDetails(id: string | number, type: "movie" | "tv" = "movie"): Promise<MediaDetails> {
-  const data = await tmdbFetch<TmdbDetails>(`/${type}/${id}?append_to_response=videos,credits`);
-  const trailers: Trailer[] = (data.videos?.results ?? [])
-    .filter((v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser"))
-    .slice(0, 5)
-    .map((v) => ({ id: v.id, key: v.key, name: v.name, site: v.site, type: v.type }));
+  try {
+    const data = await tmdbFetch<TmdbDetails>(`/${type}/${id}?append_to_response=videos,credits`);
+    const trailers: Trailer[] = (data.videos?.results ?? [])
+      .filter((v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser"))
+      .slice(0, 5)
+      .map((v) => ({ id: v.id, key: v.key, name: v.name, site: v.site, type: v.type }));
 
-  const cast: CastMember[] = (data.credits?.cast ?? []).slice(0, 12).map((c) => ({
-    id: c.id,
-    name: c.name,
-    character: c.character || "N/A",
-    profile: c.profile_path ? `${TMDB_IMAGE}${c.profile_path}` : null,
-  }));
+    const cast: CastMember[] = (data.credits?.cast ?? []).slice(0, 12).map((c) => ({
+      id: c.id,
+      name: c.name,
+      character: c.character || "N/A",
+      profile: c.profile_path ? `${TMDB_IMAGE}${c.profile_path}` : null,
+    }));
 
-  return {
-    id: data.id,
-    title: data.title || data.name || "Untitled",
-    overview: data.overview || "No overview available.",
-    poster: data.poster_path ? `${TMDB_IMAGE}${data.poster_path}` : "",
-    backdrop: data.backdrop_path ? `${TMDB_BACKDROP}${data.backdrop_path}` : "",
-    rating: Number(data.vote_average?.toFixed?.(1) ?? 0),
-    releaseDate: data.release_date || data.first_air_date || "",
-    runtime: data.runtime || data.episode_run_time?.[0] || 0,
-    genres: data.genres || [],
-    type,
-    seasons: data.number_of_seasons,
-    trailers,
-    cast,
-  };
+    return {
+      id: data.id,
+      title: data.title || data.name || "Untitled",
+      overview: data.overview || "No overview available.",
+      poster: data.poster_path ? `${TMDB_IMAGE}${data.poster_path}` : "",
+      backdrop: data.backdrop_path ? `${TMDB_BACKDROP}${data.backdrop_path}` : "",
+      rating: Number(data.vote_average?.toFixed?.(1) ?? 0),
+      releaseDate: data.release_date || data.first_air_date || "",
+      runtime: data.runtime || data.episode_run_time?.[0] || 0,
+      genres: data.genres || [],
+      type,
+      seasons: data.number_of_seasons,
+      trailers,
+      cast,
+    };
+  } catch {
+    return {
+      id: Number(id),
+      title: "Content Unavailable",
+      overview: "This content is temporarily unavailable. Please try another title.",
+      poster: "",
+      backdrop: "",
+      rating: 0,
+      releaseDate: "",
+      runtime: 0,
+      genres: [],
+      type,
+      seasons: undefined,
+      trailers: [],
+      cast: [],
+    };
+  }
 }
 
 export async function getRecommendations(id: string | number, type: "movie" | "tv" = "movie") {

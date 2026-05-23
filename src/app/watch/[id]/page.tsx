@@ -17,10 +17,21 @@ export default async function WatchPage({ params, searchParams }: Props) {
   const season = Number(query.season || 1);
   const episode = Number(query.episode || 1);
 
-  const [details, recommendations] = await Promise.all([
-    getDetails(id, type),
-    getRecommendations(id, type),
-  ]);
+  let details;
+  let recommendations = [];
+
+  try {
+    [details, recommendations] = await Promise.all([
+      getDetails(id, type),
+      getRecommendations(id, type),
+    ]);
+  } catch (error) {
+    throw error;
+  }
+
+  if (!details || details.title === "Content Unavailable") {
+    throw new Error("Content not found");
+  }
 
   return (
     <div className="space-y-6">

@@ -1,5 +1,6 @@
 import { MovieRow } from "@/components/movie/movie-row";
 import { SearchPanel } from "@/components/movie/search-panel";
+import { MediaItem } from "@/types";
 import {
   getAnime,
   getHorror,
@@ -13,18 +14,41 @@ import { Crown, Sparkles, Zap } from "lucide-react";
 import Link from "next/link";
 
 export default async function Home() {
-  const [trending, popular, topRated, anime, horror, scifi] =
-    await Promise.all([
-      getTrending(),
-      getPopularMovies(),
-      getTopRatedMovies(),
-      getAnime(),
-      getHorror(),
-      getSciFi(),
-    ]);
+  let trending: MediaItem[] = [];
+  let popular: MediaItem[] = [];
+  let topRated: MediaItem[] = [];
+  let anime: MediaItem[] = [];
+  let horror: MediaItem[] = [];
+  let scifi: MediaItem[] = [];
+  let dataError = false;
+
+  try {
+    const [trendingData, popularData, topRatedData, animeData, horrorData, scifiData] =
+      await Promise.all([
+        getTrending(),
+        getPopularMovies(),
+        getTopRatedMovies(),
+        getAnime(),
+        getHorror(),
+        getSciFi(),
+      ]);
+    trending = trendingData;
+    popular = popularData;
+    topRated = topRatedData;
+    anime = animeData;
+    horror = horrorData;
+    scifi = scifiData;
+  } catch {
+    dataError = true;
+  }
 
   return (
     <div className="space-y-10">
+      {dataError ? (
+        <div className="rounded-lg border border-amber-300/30 bg-amber-500/5 p-4 text-sm text-amber-100">
+          Some content may be temporarily unavailable. Showing cached or partial results.
+        </div>
+      ) : null}
       {/* HERO */}
       <section className="hero-cinematic relative overflow-hidden rounded-2xl border border-cyan-300/20 bg-black/40 p-8 md:p-14">
         {/* GLOWS */}
