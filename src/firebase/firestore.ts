@@ -35,28 +35,72 @@ function defaultProfile(user: User): UserProfile {
     continueWatching: [],
     watchHistory: [],
     lastLogin: new Date().toISOString(),
+    lastActivity: new Date().toISOString(),
+    lastIP: "",
     userAgent: "",
     browser: "",
+    os: "",
+    osVersion: "",
+    browserVersion: "",
     device: "",
     country: "",
+    countryCode: "",
+    city: "",
     ip: "",
     isBanned: false,
+    isVPN: false,
+    onlineStatus: "offline",
+    loginHistory: [],
+    sessionHistory: [],
   };
 }
 
 export async function upsertUserProfile(user: User, metadata?: Partial<UserProfile>) {
   const ref = doc(db, "users", user.uid);
   const snap = await getDoc(ref);
+  const now = new Date().toISOString();
+  
   if (!snap.exists()) {
-    await setDoc(ref, { ...defaultProfile(user), ...metadata });
+    await setDoc(ref, { 
+      ...defaultProfile(user), 
+      lastLogin: now,
+      lastActivity: now,
+      ...metadata 
+    });
   } else {
-    await updateDoc(ref, {
+    const updates: Record<string, unknown> = {
       username: user.displayName || snap.data().username,
       email: user.email || snap.data().email,
       avatar: user.photoURL || snap.data().avatar || "",
-      lastLogin: new Date().toISOString(),
+      lastLogin: now,
+      lastActivity: now,
       ...metadata,
-    });
+    };
+    
+    // Agregar a loginHistory si hay datos de tracking
+    if (metadata?.browser || metadata?.lastIP) {
+      const loginRecord = {
+        ip: metadata?.lastIP || "",
+        country: metadata?.country || "",
+        countryCode: metadata?.countryCode || "",
+        city: metadata?.city || "",
+        browser: metadata?.browser || "",
+        os: metadata?.os || "",
+        osVersion: metadata?.osVersion || "",
+        browserVersion: metadata?.browserVersion || "",
+        isVPN: metadata?.isVPN || false,
+        isProxy: false,
+        userAgent: metadata?.userAgent || "",
+        timestamp: now,
+        deviceType: metadata?.device || "desktop",
+      };
+      
+      const currentHistory = snap.data().loginHistory || [];
+      const newHistory = [loginRecord, ...currentHistory].slice(0, 50); // Max 50
+      updates.loginHistory = newHistory;
+    }
+    
+    await updateDoc(ref, updates);
   }
 }
 
@@ -95,12 +139,16 @@ export async function saveWatchProgress(uid: string, payload: { id: number; type
 }
 
 export async function createPayment(payment: PaymentRecord) {
-  await addDoc(collection(db, "payments"), { ...payment, createdAt: serverTimestamp() });
+  await addDoc(collection(db, "payment_requests"), { 
+    ...payment, 
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
 }
 
 export function listenPendingPayments(cb: (payments: PaymentRecord[]) => void) {
   // Index-safe query: filter only, then sort client-side.
-  const q = query(collection(db, "payments"), where("status", "==", "pending"), limit(100));
+  const q = query(collection(db, "payment_requests"), where("status", "==", "pending"), limit(100));
   return onSnapshot(
     q,
     (snap) => {
@@ -113,8 +161,100 @@ export function listenPendingPayments(cb: (payments: PaymentRecord[]) => void) {
   );
 }
 
-export async function setPaymentStatus(paymentId: string, status: PaymentRecord["status"]) {
-  await updateDoc(doc(db, "payments", paymentId), { status });
+export function listenAllPayments(cb: (payments: PaymentRecord[]) => void) {
+  const q = query(collection(db, "payment_requests"), limit(500));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const rows = snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as PaymentRecord) }))
+        .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+      cb(rows);
+    },
+    () => cb([]),
+  );
+}
+
+export async function setPaymentStatus(paymentId: string, status: PaymentRecord["status"], reviewedBy?: string) {
+  const updates: Record<string, unknown> = { 
+    status, 
+    updatedAt: serverTimestamp() 
+  };
+  
+  if (reviewedBy) {
+    updates.reviewedAt = serverTimestamp();
+    updates.reviewedBy = reviewedBy;
+  }
+  
+  await updateDoc(doc(db, "payment_requests", paymentId), updates);
+}
+
+export async function approvePayment(paymentId: string, adminUid: string) {
+  const payment = await getDoc(doc(db, "payment_requests", paymentId));
+  if (!payment.exists()) throw new Error("Payment not found");
+  
+  const paymentData = payment.data() as PaymentRecord;
+  const days = getDaysFromDuration(paymentData.duration);
+  
+  // Update payment status
+  await setPaymentStatus(paymentId, "approved", adminUid);
+  
+  // Update user subscription
+  await activateSubscription(paymentData.uid, paymentData.plan as "basic" | "plus" | "ultra", days);
+  
+  // Add audit log
+  await addDoc(collection(db, "payment_audit"), {
+    paymentId,
+    action: "approved",
+    adminUid,
+    amount: paymentData.price,
+    plan: paymentData.plan,
+    duration: paymentData.duration,
+    timestamp: serverTimestamp(),
+    ipAddress: paymentData.ipAddress,
+    userAgent: paymentData.userAgent
+  });
+}
+
+export async function rejectPayment(paymentId: string, adminUid: string, reason: string) {
+  const payment = await getDoc(doc(db, "payment_requests", paymentId));
+  if (!payment.exists()) throw new Error("Payment not found");
+  
+  const paymentData = payment.data() as PaymentRecord;
+  
+  // Update payment status
+  await updateDoc(doc(db, "payment_requests", paymentId), {
+    status: "rejected",
+    rejectionReason: reason,
+    reviewedBy: adminUid,
+    reviewedAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  
+  // Add audit log
+  await addDoc(collection(db, "payment_audit"), {
+    paymentId,
+    action: "rejected",
+    adminUid,
+    amount: paymentData.price,
+    plan: paymentData.plan,
+    duration: paymentData.duration,
+    rejectionReason: reason,
+    timestamp: serverTimestamp(),
+    ipAddress: paymentData.ipAddress,
+    userAgent: paymentData.userAgent
+  });
+}
+
+function getDaysFromDuration(duration: string): number {
+  switch (duration) {
+    case "2 dias": return 2;
+    case "1 semana": return 7;
+    case "1 mes": return 30;
+    case "1 ano": return 365;
+    case "Ultra Elite": return 365; // 1 year for elite
+    default: return 30;
+  }
 }
 
 export async function activateSubscription(uid: string, plan: "basic" | "plus" | "ultra", days: number) {

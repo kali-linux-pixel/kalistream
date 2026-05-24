@@ -61,6 +61,36 @@ export type AppUser = {
   isBanned?: boolean;
 };
 
+export type LoginRecord = {
+  ip: string;
+  country: string;
+  countryCode: string;
+  city: string;
+  browser: string;
+  os: string;
+  osVersion: string;
+  browserVersion: string;
+  isVPN: boolean;
+  isProxy: boolean;
+  userAgent: string;
+  timestamp: string;
+  deviceType: string;
+  isSuspicious?: boolean;
+  suspiciousReasons?: string[];
+};
+
+export type SessionRecord = {
+  id: string;
+  ip: string;
+  country: string;
+  browser: string;
+  os: string;
+  startedAt: string;
+  lastActivityAt: string;
+  expiresAt: string;
+  active: boolean;
+};
+
 export type UserProfile = {
   uid: string;
   username: string;
@@ -74,24 +104,43 @@ export type UserProfile = {
   continueWatching: Array<{ id: number; type: "movie" | "tv"; progress: number; updatedAt: string }>;
   watchHistory: Array<{ id: number; type: "movie" | "tv"; watchedAt: string; progress: number }>;
   lastLogin?: string;
+  lastIP?: string;
+  lastActivity?: string;
   ip?: string;
   country?: string;
+  countryCode?: string;
+  city?: string;
   device?: string;
   browser?: string;
+  os?: string;
+  osVersion?: string;
+  browserVersion?: string;
   userAgent?: string;
   isBanned?: boolean;
+  isVPN?: boolean;
+  onlineStatus?: "online" | "offline";
+  loginHistory?: LoginRecord[];
+  sessionHistory?: SessionRecord[];
+  suspiciousLogins?: LoginRecord[];
 };
 
 export type PaymentRecord = {
   id?: string;
   uid: string;
   email: string;
-  method: "Yape" | "Plin" | "PayPal";
+  username?: string;
+  method: "Yape" | "Plin" | "Transferencia";
   plan: "basic" | "plus" | "ultra";
   duration: string;
+  price?: string;
   screenshotUrl: string;
   status: PaymentStatus;
   createdAt: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+  ipAddress?: string;
+  userAgent?: string;
 };
 
 export type AnnouncementRecord = {
